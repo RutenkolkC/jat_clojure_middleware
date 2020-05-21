@@ -1,0 +1,4 @@
+{:docker true
+ :neo4j-url "analyzer:7786"
+ :refactor-url "refactor:8078"
+ :analyzer-url "analyzer:8079" }
