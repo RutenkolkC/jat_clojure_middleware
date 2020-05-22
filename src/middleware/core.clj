@@ -340,35 +340,7 @@ RETURN n1,n2,p AS package")
 
 (defn fqn-to-package [fqn]
   (.substring fqn 0 (.lastIndexOf fqn ".")))
-(comment
-  (+ 1 2)
 
-  (=
-   (get-intra-package-depedency-matrix-by-name
-    "de.prob.statespace")
-
-   (get-intra-package-depedency-matrix-by-id
-    146)
-
-   )
-  (json/read-str (json/write-str (json/read-str "[\"mystr\",1,2,3]")))
-  (clojure.pprint/pprint "[[\"0\",\"Shell\"]]")
-  (json/read-str "[[\"0\",\"Shell\"]]")
-
-  (edge-bundling-info 866)
-  (edge-bundling-info 3262)
-
-
-  (with-open [session (db/get-session @local-db)]
-
-    (dependencies-below-package session {:nodeid 1030 :packageid 866}))
-  (layer-pro-1 866)
-
-
-
-  (get-infos-about-node 866)
-
-  )
 
 
 (db/defquery dependencies-below-package
@@ -625,46 +597,6 @@ RETURN m")
           methods-returning-this-class (filter (fn [sf] (= classname (first (clojure.string/split (:signature sf) #" ")))) non-static-methods)]
       (= 1 (- (count non-static-methods) (count methods-returning-this-class))))))
 
-(comment
-  (layer-pro-1 10915)
-
-  (layer-pro-2 10915)
-
-  (layer-contra-1 10915)
-
-  (layer-contra-2 10915)
-
-  (ports-and-adapters-pro-1 10915)
-
-  (ports-and-adapters-pro-2 10915)
-
-  (float (ports-and-adapters-contra-1 10915))
-
-
-
-  (first (first '(([[{:id 3450, :package "de.prob.statespace"}]
-              [{:id 9293, :package "de.prob.model.eventb"}]]
-             [[{:id 3450, :package "de.prob.statespace"}]
-              [{:id 9295, :package "de.prob.model.eventb"}]]))))
-
-
-  (alg/all-pairs-shortest-paths (graph/digraph [:a :b] [:b :c] [:c :d] [:c :g] [:d :e] [:f :e] [:g :f] [:g :h]))
-
-  (all-pairs-shortest-paths (graph/digraph [:a :b] [:b :c] [:c :d] [:c :g] [:d :e] [:f :e] [:g :f] [:g :h]))
-  (shortest-paths (graph/digraph [:a :b] [:b :c] [:c :d] [:c :g] [:d :e] [:f :e] [:g :f] [:g :h]))
-
-  (alg/shortest-path (graph/digraph [:a :b] [:b :c] [:c :d] [:c :g] [:d :e] [:f :e] [:g :f] [:g :h]) :a :g)
-
-  (condensation [[:a :b] [:b :c] [:c :a] [:c :d] [:d :e] [:e :f] [:f :d] [:f :g] [:g :h]])
-
-  (factory-pro-1 7808)
-
-  (factory-pro-1 7808)
-  (builder-pro-2 4584)
-  (builder-pro-3 4584)
-
-  )
-
 (defn edge-bundling-info [packageid]
   (let [relevant-classes (with-open [session (db/get-session @local-db)]
                            (db/execute
@@ -688,9 +620,6 @@ RETURN m")
 
 (defn node-search [req]
   (let [json-body (json/read-str (slurp (clojure.java.io/reader (:body req) :encoding "UTF-8")))]
-    (clojure.pprint/pprint "hello")
-    (clojure.pprint/pprint json-body)
-
     (with-open [session (db/get-session @local-db)]
       (db/execute
        session
@@ -1037,23 +966,13 @@ RETURN n,labels(n) as labels")
        (fn [req]
          {:status 200 :headers
           {"Content-Type" "text/html"}
-          :body (html [:span "jojojo api here"])}))
+          :body (html [:span "hello world, api here"])}))
 
-  (GET "/api/krasserShit" []
-       (fn [req]
-         {:status 200 :headers
-          {"Content-Type" "text/html"}
-          :body (html [:span "AM SACK"])}))
   (GET "/api/edgebundling" []
        (json-response edge-bundling-handler))
-  (GET "/ws" [] web-socket-example)
-  (GET "/async" [] async-handler) ;; asynchronous(long polling)
   ;(GET "/package/:id" [] package-listing-json)
   (POST "/api/analyze" [] analyze-handler)
   (POST "/api/reset" [] reset-handler)
-  (context "/api/user/:id" [id]
-    (GET "/" [] get-user-by-id)
-    (POST "/" [] update-user-by-id))
   (GET "/api/layer-pro-1/:id" [id]
        (json-response-no-arg #(< 0.95 (layer-pro-1
                                 (Integer/parseInt id)))))
