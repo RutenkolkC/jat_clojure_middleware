@@ -52,8 +52,9 @@
   (swap! local-db (fn [_] (db/connect (str "bolt://" neo4j-url) "neo4j" "password"))))
 
 (defn init-refactor! []
-  @(http/post (str "http://" refactor-url "/refactor/init")
-             {:form-params (json/read-str (:body @(http/get (str "http://" analyzer-url "/analyze/gitrepo")))  ) })  )
+  (clojure.pprint/pprint "init refactor:")
+  (clojure.pprint/pprint @(http/post (str "http://" refactor-url "/refactor/init")
+             {:form-params (json/read-str (:body @(http/get (str "http://" analyzer-url "/analyze/gitrepo")))  ) }))  )
 
 (db/defquery class-hierarchy
  "MATCH (n1)-[r]->(n2)
