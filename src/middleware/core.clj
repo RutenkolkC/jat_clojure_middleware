@@ -1,5 +1,6 @@
 (ns middleware.core
-  (:require clojure.pprint)
+  (:require clojure.pprint
+            [clojure.string :as str])
   (:require [clojure.zip :as z])
   (:require [neo4j-clj.core :as db])
   (:use [compojure.route :only [files not-found]])
@@ -12,7 +13,7 @@
   (:require [loom.alg :as alg])
   (:require [loom.alg-generic :as alg-generic])
   (:require [clojure.core.async :as async])
- ; (:import [de.hhu.jat.main StartApp])
+                                        ; (:import [de.hhu.jat.main StartApp])
   (:use hiccup.core)
   (:gen-class))
 
@@ -640,6 +641,88 @@ RETURN m")
             " RETURN n.name as name, labels(n) as labels, n.fqn as fqn, ID(n) as id"
             )))))
 
+(def dep-path-length 10)
+(defn outgoing-deps [id]
+  (let [queries
+        (for [p-length (range 1 dep-path-length)]
+          (str "MATCH (n)-[:DEPENDS_ON]->(target) WHERE ID(n)="
+               id
+               " WITH n,target MATCH p=( (n)-[:CONTAINS]"
+
+               (str/join "-[:CONTAINS]" (map #(str "-(n" % ")") (range p-length)))
+
+               "-[:CONTAINS]-(target) ) "
+
+               "WHERE NOT "
+
+               (str/join " AND NOT "(map #(str "n" % ":Jar") (range p-length)))
+
+               " RETURN EXTRACT(pn in NODES(p) | pn.fqn) AS dpath"))]
+    (map :dpath (flatten (for [q queries]
+                (with-open [session (db/get-session @local-db)]
+                  (db/execute session q)))))))
+(defn incoming-deps [id]
+  (let [queries
+        (for [p-length (range 1 dep-path-length)]
+          (str "MATCH (n)<-[:DEPENDS_ON]-(target) WHERE ID(n)="
+               id
+               " WITH n,target MATCH p=( (n)-[:CONTAINS]"
+
+               (str/join "-[:CONTAINS]" (map #(str "-(n" % ")") (range p-length)))
+
+               "-[:CONTAINS]-(target) ) "
+
+               "WHERE NOT "
+
+               (str/join " AND NOT "(map #(str "n" % ":Jar") (range p-length)))
+
+               " RETURN EXTRACT(pn in NODES(p) | pn.fqn) AS dpath"))]
+    (map :dpath (flatten (for [q queries]
+                           (with-open [session (db/get-session @local-db)]
+                             (db/execute session q)))))))
+
+(defn outgoing-deps-id-pairs [id]
+  (let [queries
+        (for [p-length (range 1 dep-path-length)]
+          (str "MATCH (n)-[:DEPENDS_ON]->(target) WHERE ID(n)="
+               id
+               " WITH n,target MATCH p=( (n)-[:CONTAINS]"
+
+               (str/join "-[:CONTAINS]" (map #(str "-(n" % ")") (range p-length)))
+
+               "-[:CONTAINS]-(target) ) "
+
+               "WHERE NOT "
+
+               (str/join " AND NOT "(map #(str "n" % ":Jar") (range p-length)))
+
+               " RETURN EXTRACT(pn in NODES(p) | ID(pn)) AS dpath"))]
+    (apply concat (map (fn [p] (partition 2 1 p))
+                       (map :dpath (flatten (for [q queries]
+                                              (with-open [session (db/get-session @local-db)]
+                                                (db/execute session q)))))))))
+
+(defn incoming-deps-id-pairs [id]
+  (let [queries
+        (for [p-length (range 1 dep-path-length)]
+          (str "MATCH (n)<-[:DEPENDS_ON]-(target) WHERE ID(n)="
+               id
+               " WITH n,target MATCH p=( (n)-[:CONTAINS]"
+
+               (str/join "-[:CONTAINS]" (map #(str "-(n" % ")") (range p-length)))
+
+               "-[:CONTAINS]-(target) ) "
+
+               "WHERE NOT "
+
+               (str/join " AND NOT "(map #(str "n" % ":Jar") (range p-length)))
+
+               " RETURN EXTRACT(pn in NODES(p) | ID(pn)) AS dpath"))]
+    (apply concat (map (fn [p] (partition 2 1 p))
+                       (map :dpath (flatten (for [q queries]
+                                              (with-open [session (db/get-session @local-db)]
+                                                (db/execute session q)))))))))
+
 (defn sources-of-class-hierarchy [edges]
   (let [source-vertices (set (pmap :q1 edges))
         sink-vertices (set (pmap :q2 edges))
@@ -1016,7 +1099,10 @@ RETURN n,labels(n) as labels")
   (GET "/api/builder-pro-3/:id" [id]
        (json-response-no-arg #(builder-pro-3 (Integer/parseInt id))))
 
-
+  (GET "/api/incoming-deps/:id" [id]
+       (json-response-no-arg #(incoming-deps-id-pairs (Integer/parseInt id))))
+  (GET "/api/outgoing-deps/:id" [id]
+       (json-response-no-arg #(outgoing-deps-id-pairs (Integer/parseInt id))))
 
 
   (GET "/api/progress" [] (json-response progress-report))
