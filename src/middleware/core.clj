@@ -959,6 +959,11 @@ RETURN n,labels(n) as labels")
         type? (in? (:labels node-info) "Type")]
     (merge general-info node-info)))
 
+(def existing-projects-location "/tmp/jat/")
+(defn scan-for-projects! []
+  (let [subfiles (vec (.listFiles (clojure.java.io/file existing-projects-location)))]
+    (map #(.getAbsolutePath %) (filter #(and (.isDirectory %) (not (.startsWith (.getName %) "jat_git_clone"))) subfiles))))
+
 ;--------------------------------------------------------------------------------
 (defmacro json-response [handle-fn]
   `(fn [req#]
@@ -1024,10 +1029,7 @@ RETURN n,labels(n) as labels")
     (do
       (swap! state assoc :started? true)
       (let [islocal (= "true" ((:form-params req) "isLocal"))
-            path (if islocal
-                   (:path
-                    (predefined-projects (Integer/parseInt ((:form-params req) "analyzePath"))))
-                   ((:form-params req) "analyzePath"))]
+            path ((:form-params req) "analyzePath")]
         (jqa-kickoff! (:form-params req)))
       {:status 200
        :headers {"Content-Type" "text/html"}
@@ -1056,6 +1058,8 @@ RETURN n,labels(n) as labels")
   ;(GET "/package/:id" [] package-listing-json)
   (POST "/api/analyze" [] analyze-handler)
   (POST "/api/reset" [] reset-handler)
+  (GET "/api/pre-configured" []
+       (json-response-no-arg scan-for-projects!))
   (GET "/api/layer-pro-1/:id" [id]
        (json-response-no-arg #(< 0.95 (layer-pro-1
                                 (Integer/parseInt id)))))
