@@ -294,6 +294,30 @@ RETURN n1,n2,p AS package")
   (package-listing-minimal-feedbackarc-ordered-impl-grouped
    #(get-package-listing-by-id id)))
 
+(db/defquery direct-inter-package-dependencies
+"MATCH  (p1:Package)-[:CONTAINS]->(leftNode:Type)-[r:DEPENDS_ON]-(:Type)<-[:CONTAINS]-(p2:Package)
+  RETURN DISTINCT p1.fqn, p2.fqn, leftNode = startNode(r) as leftToRight")
+
+(defn inter-package-fas []
+  (feedback-arc-set-ordering-grouped
+   (apply graph/digraph (with-open [session (db/get-session @local-db)]
+                          (map (fn [m] (if (:leftToRight m)
+                                         [(:p1.fqn m) (:p2.fqn m)]
+                                         [(:p2.fqn m) (:p1.fqn m)]))
+                               (direct-inter-package-dependencies session))))))
+
+(defn inter-package-fas-by-id [id]
+  (feedback-arc-set-ordering-grouped
+   (with-open [session (db/get-session @local-db)]
+     (let [n (:fqn (first (id-to-fqn session {:id id})))
+           g (apply graph/digraph
+                    (map (fn [m] (if (:leftToRight m)
+                                   [(:p1.fqn m) (:p2.fqn m)]
+                                   [(:p2.fqn m) (:p1.fqn m)]))
+                         (direct-inter-package-dependencies session)))
+           neighbors (concat (graph/successors g n) (graph/predecessors g n))]
+       (graph/subgraph g neighbors)))))
+
 (defn package-listing-to-arc-diagram-format [pl]
   (let [nodes (:nodes pl)
         edges (:edges pl)
@@ -935,6 +959,11 @@ RETURN ID(c) as id,labels(c) as labels")
 
 
 
+(db/defquery get-package-of-node
+  "MATCH (n) <-[:CONTAINS]-(p:Package)
+WHERE ID(n) = $nodeID
+RETURN ID(p) as packageid")
+
 (db/defquery just-one-node
 "MATCH (n)
 WHERE ID(n) = $nodeID
@@ -951,6 +980,15 @@ RETURN n,labels(n) as labels")
      (assoc node-info
             :declared-methods (map :m (jqa-declared-methods session {:nodeID id}))
             :dep-matrix dep-matrix))))
+
+(defn package-of [id]
+  (with-open [session (db/get-session @local-db)]
+    (let [node-sep (first (just-one-node session {:nodeID id}))
+          node-info (assoc (:n node-sep) :labels (:labels node-sep))
+          package? (in? (:labels node-info) "Package")
+          ]
+      (if package? id (:packageid (first (get-package-of-node session {:nodeID id})))))))
+
 
 (defn get-infos-about-tree-node [id]
   (let [general-info (get-infos-about-node id)
@@ -1132,10 +1170,24 @@ RETURN n,labels(n) as labels")
   (GET "/api/package-listing-by-name/:name" [name]
        (json-response-no-arg #(package-listing-to-arc-diagram-format
                                (package-listing-minimal-feedbackarc-ordered-by-name name))))
+
+  (GET "/api/package-of/:id" [id]
+       (json-response-no-arg #(package-of (Integer/parseInt id))))
+
   (GET "/api/package-listing-by-id/:id" [id]
        (json-response-no-arg #(package-listing-to-arc-diagram-format
                                (package-listing-minimal-feedbackarc-ordered-by-id
                                 (Integer/parseInt id)))))
+
+  (GET "/api/inter-package-fas-all" []
+       (json-response-no-arg #(package-listing-to-arc-diagram-format
+                               (inter-package-fas))))
+
+  (GET "/api/inter-package-fas/:id" [id]
+       (json-response-no-arg #(package-listing-to-arc-diagram-format
+                               (inter-package-fas-by-id
+                                (Integer/parseInt id)))))
+
   (GET "/api/node-info/:id" [id]
        (json-response-no-arg #(get-infos-about-node
                                (Integer/parseInt id))))
