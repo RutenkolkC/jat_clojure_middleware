@@ -305,6 +305,7 @@ RETURN n1,n2,p AS package")
                                          [(:p1.fqn m) (:p2.fqn m)]
                                          [(:p2.fqn m) (:p1.fqn m)]))
                                (direct-inter-package-dependencies session))))))
+(declare id-to-fqn)
 
 (defn inter-package-fas-by-id [id]
   (feedback-arc-set-ordering-grouped
@@ -953,9 +954,12 @@ RETURN ID(c) as id,labels(c) as labels")
   (async/thread
     (while (not (neo4j-server-ready?))
       (Thread/sleep 100))
+    (swap! state assoc :clojure-start-analysis-time  (System/currentTimeMillis))
     (init-db-connection!)
     (analyze!)
-    (init-refactor!)))
+    (init-refactor!)
+    (swap! state assoc :clojure-end-analysis-time  (System/currentTimeMillis))
+    (swap! state assoc :clojure-analysis-complete? true)))
 
 
 
@@ -1056,6 +1060,21 @@ RETURN n,labels(n) as labels")
      :headers {"Content-Type" "text/html"}
      :body (html [:span {:class "foo"} "bar"])})
 
+(defn progress-status []
+  (let [current-state @state
+        end-time (if (:clojure-end-analysis-time current-state)
+                   (:clojure-end-analysis-time current-state) (System/currentTimeMillis))]
+    (conj (json/read-str (:body @(http/get (str "http://" analyzer-url "/analyze/status"))))
+         {"name" "Clojure analysis",
+          "elapsed-time" (if (:clojure-start-analysis-time current-state)
+                           (str (float
+                                 (/ (- end-time (:clojure-start-analysis-time current-state))
+                                    1000)))
+                           "0"),
+          "message" "",
+          "percent" (if (:clojure-analysis-complete? current-state) "100" "0"),
+          "status" (if (:clojure-analysis-complete? current-state) "success" "info")})))
+
 (def predefined-projects
   {1 {:path "/home/wiredaemon/test"
       :display "ProB 2 Kernel Test Environment"}
@@ -1096,6 +1115,8 @@ RETURN n,labels(n) as labels")
   ;(GET "/package/:id" [] package-listing-json)
   (POST "/api/analyze" [] analyze-handler)
   (POST "/api/reset" [] reset-handler)
+  (GET "/api/progress-status" []
+       (json-response-no-arg progress-status))
   (GET "/api/pre-configured" []
        (json-response-no-arg scan-for-projects!))
   (GET "/api/layer-pro-1/:id" [id]
